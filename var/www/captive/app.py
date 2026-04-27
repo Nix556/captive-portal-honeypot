@@ -14,16 +14,17 @@ def parse_user_agent(ua):
     os = "unknown"
     browser = "unknown"
 
-    if "Windows" in ua:
+    # OS detection
+    if "iPhone" in ua or "iPad" in ua:
+        os = "iOS"
+    elif "Android" in ua:
+        os = "Android"
+    elif "Windows" in ua:
         os = "Windows"
     elif "Mac OS" in ua or "Macintosh" in ua:
         os = "MacOS"
     elif "Linux" in ua:
         os = "Linux"
-    elif "Android" in ua:
-        os = "Android"
-    elif "iPhone" in ua or "iPad" in ua:
-        os = "iOS"
 
     if any(x in ua for x in ["Mobile", "Android", "iPhone"]):
         device = "mobile"
@@ -36,7 +37,9 @@ def parse_user_agent(ua):
         browser = "Firefox"
     elif "Chrome" in ua:
         browser = "Chrome"
-    elif "Safari" in ua:
+    elif "Safari" in ua or (
+        os == "iOS" and "AppleWebKit" in ua and "Chrome" not in ua and "CriOS" not in ua
+    ):
         browser = "Safari"
 
     return device, os, browser
