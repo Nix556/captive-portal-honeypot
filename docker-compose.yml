@@ -1,0 +1,14 @@
+services:
+  unifi:
+    image: jacobalberty/unifi
+    container_name: unifi
+    restart: unless-stopped
+
+    network_mode: host
+
+    environment:
+      - TZ=Europe/Copenhagen
+      - SYSTEM_IP=10.0.0.11
+
+    volumes:
+      - ./data:/unifi

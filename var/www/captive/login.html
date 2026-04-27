@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<title>Wi-Fi Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0b1220;
+    color: #e5e7eb;
+}
+
+.wrap {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+.card {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+h2 {
+    margin-bottom: 10px;
+}
+
+input {
+    width: 100%;
+    padding: 11px;
+    margin-top: 10px;
+    margin-bottom: 14px;
+    border-radius: 8px;
+    border: none;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: #38bdf8;
+    color: #0b1220;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #0ea5e9;
+}
+
+.notice {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+    <div class="card">
+        <h2>Log ind for at fortsætte</h2>
+
+        <form action="/authorize" method="GET">
+            <input type="hidden" name="mac" id="mac">
+            <input type="hidden" name="ap" id="ap">
+            <input type="hidden" name="ssid" id="ssid">
+            <input type="hidden" name="startTime" id="startTime">
+
+            <input type="text" name="email" placeholder="Email">
+            <input type="password" name="password" placeholder="Adgangskode">
+
+            <button type="submit">Forbind</button>
+        </form>
+
+        <div class="notice">
+            ⚠ Dette er en sikkerhedsdemonstration – brug ikke rigtige oplysninger
+        </div>
+    </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+
+document.getElementById("mac").value = params.get("mac") || "";
+document.getElementById("ap").value = params.get("ap") || "";
+document.getElementById("ssid").value = params.get("ssid") || "";
+
+document.getElementById("startTime").value =
+    localStorage.getItem("startTime") || Date.now();
+</script>
+
+</body>
+</html>

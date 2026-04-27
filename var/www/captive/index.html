@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<title>Robot & Science Festival Wi-Fi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0b1220;
+    color: #e5e7eb;
+}
+
+.wrap {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+.card {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+h1 {
+    font-size: 22px;
+    margin-bottom: 8px;
+}
+
+p {
+    color: #cbd5e1;
+    line-height: 1.5;
+    font-size: 14px;
+}
+
+.small {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 10px;
+}
+
+button {
+    margin-top: 18px;
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: #38bdf8;
+    color: #0b1220;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #0ea5e9;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+    <div class="card">
+        <h1>Gratis Festival Wi-Fi</h1>
+        <p>Robot & Science Festival - Odense</p>
+
+        <p class="small">
+            Hurtig og gratis internetadgang for besøgende
+        </p>
+
+        <button onclick="goNext()">Forbind</button>
+
+        <p class="small">Netværk: RSF_Guest</p>
+    </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+localStorage.setItem("startTime", Date.now());
+
+function goNext() {
+    const url = new URL("/login.html", window.location.origin);
+
+    params.forEach((v, k) => url.searchParams.set(k, v));
+
+    window.location.href = url.toString();
+}
+</script>
+
+</body>
+</html>
