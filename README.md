@@ -14,9 +14,9 @@ Strukturen er rimelig simpel HTML siderne ligger samlet, og Flask app’en tager
 
 ## Hurtigt flow (så jeg selv kan huske det)
 
-- Captive portal - [var/www/captive/index.html](var/www/captive/index.html)
-- Videre til login - [var/www/captive/login.html](var/www/captive/login.html)
-- Submit - `/authorize` (Flask)
+- Captive portal = [var/www/captive/index.html](var/www/captive/index.html)
+- Videre til login = [var/www/captive/login.html](var/www/captive/login.html)
+- Submit = `/authorize` (Flask)
 - Flask logger til `honeypot.log` og redirecter til [var/www/captive/success.html](var/www/captive/success.html)
 
 ## Hvad logger den?
