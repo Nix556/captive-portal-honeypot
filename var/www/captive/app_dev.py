@@ -1,8 +1,11 @@
 from flask import Flask, request, redirect
 import json
 import time
+import os
 import logging
 from datetime import datetime, timezone
+
+from dashboard import create_dashboard_blueprint
 
 app = Flask(__name__)
 
@@ -10,6 +13,19 @@ app = Flask(__name__)
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 LOG_FILE = "honeypot.log"
+app.register_blueprint(create_dashboard_blueprint(LOG_FILE))
+
+
+def _get_client_ip(req) -> str | None:
+    # Default: trust proxy headers (disable with HONEYPOT_TRUST_PROXY=0).
+    if os.getenv("HONEYPOT_TRUST_PROXY", "1") != "0":
+        xff = (req.headers.get("X-Forwarded-For") or "").strip()
+        if xff:
+            return xff.split(",")[0].strip() or req.remote_addr
+        xri = (req.headers.get("X-Real-IP") or "").strip()
+        if xri:
+            return xri
+    return req.remote_addr
 
 
 def _normalize_device_type(value):
@@ -86,7 +102,7 @@ def log(data):
         "version": 1,
         "event": data.get("event", "login"),
         "timestamp": {
-            "utc": datetime.now(timezone.utc).isoformat()
+            "utc": datetime.now(timezone.utc).isoformat(timespec="milliseconds")
         },
         "session": {
             "duration_sec": data.get("session_duration_sec", 0)
@@ -123,7 +139,7 @@ def log(data):
 @app.route("/authorize")
 def authorize():
 
-    ip = request.remote_addr
+    ip = _get_client_ip(request)
 
     ap = request.args.get("ap")
     ssid = request.args.get("ssid")

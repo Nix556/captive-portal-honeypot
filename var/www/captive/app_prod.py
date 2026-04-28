@@ -8,6 +8,8 @@ from threading import BoundedSemaphore
 from collections import deque
 from datetime import datetime, timezone
 
+from dashboard import create_dashboard_blueprint
+
 app = Flask(__name__)
 
 # Disable Werkzeug access logs (they include the full URL + query string).
@@ -17,6 +19,7 @@ _werkzeug_logger.propagate = False
 _werkzeug_logger.disabled = True
 
 LOG_FILE = os.getenv("HONEYPOT_LOG_FILE", "honeypot.log")
+app.register_blueprint(create_dashboard_blueprint(LOG_FILE))
 
 # Defaults are chosen to be safe under abusive load, but adjustable.
 STDOUT_ENABLED = os.getenv("HONEYPOT_STDOUT", "0") == "1"
@@ -46,6 +49,18 @@ if not _event_logger.handlers:
     _event_logger.addHandler(_handler)
 _event_logger.setLevel(logging.INFO)
 _event_logger.propagate = False
+
+
+def _get_client_ip(req) -> str | None:
+    if os.getenv("HONEYPOT_TRUST_PROXY", "1") != "0":
+        xff = (req.headers.get("X-Forwarded-For") or "").strip()
+        if xff:
+            # Take the left-most IP (original client) when trusted proxy is enabled.
+            return xff.split(",")[0].strip() or req.remote_addr
+        xri = (req.headers.get("X-Real-IP") or "").strip()
+        if xri:
+            return xri
+    return req.remote_addr
 
 
 def _normalize_device_type(value):
@@ -108,7 +123,7 @@ def log(data: dict):
     enriched = {
         "version": 1,
         "event": data.get("event", "login"),
-        "timestamp": {"utc": datetime.now(timezone.utc).isoformat()},
+        "timestamp": {"utc": datetime.now(timezone.utc).isoformat(timespec="milliseconds")},
         "session": {"duration_sec": data.get("session_duration_sec", 0)},
         "network": {
             "ip": network.get("ip"),
@@ -146,7 +161,7 @@ def authorize():
         return redirect("/success.html")
 
     try:
-        ip = request.remote_addr
+        ip = _get_client_ip(request)
 
         ap_raw = request.args.get("ap", "")
         ssid_raw = request.args.get("ssid", "")
