@@ -9,7 +9,8 @@ Strukturen er rimelig simpel HTML siderne ligger samlet, og Flask app’en tager
 
 ## Struktur / hvor ting ligger
 
-- Flask app: [app.py](app.py)
+- Dev Flask (logger plaintext): [var/www/captive/app_dev.py](var/www/captive/app_dev.py)
+- Prod Flask (event, ingen plain tekst i logs): [var/www/captive/app_prod.py](var/www/captive/app_prod.py)
 - Captive portal sider: [var/www/captive/index.html](var/www/captive/index.html), [var/www/captive/login.html](var/www/captive/login.html), [var/www/captive/success.html](var/www/captive/success.html)
 
 ## Hurtigt flow (så jeg selv kan huske det)
@@ -24,4 +25,13 @@ Strukturen er rimelig simpel HTML siderne ligger samlet, og Flask app’en tager
 - Klient-IP + `ap` (BSSID) og `ssid`
 - Session-tid (fra index til submit)
 - User-Agent + grov OS/browser/device-type
-- Det brugeren taster i felterne (DER ER!!! advarsel på login siden)
+- Dev: Det brugeren taster i felterne (DER ER!!! advarsel på login siden)
+- Prod: Kun om navn/email er udfyldt + antal tegn i password
+
+## Prod (til event)
+
+Kør [var/www/captive/app_prod.py](var/www/captive/app_prod.py) til selve eventet.
+Den logger **ikke** email/password i plain tekst kun:
+
+- om email feltet er udfyldt (true/false)
+- hvor mange tegn der er i passwordet

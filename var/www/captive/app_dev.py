@@ -1,9 +1,13 @@
 from flask import Flask, request, redirect
 import json
 import time
+import logging
 from datetime import datetime, timezone
 
 app = Flask(__name__)
+
+# Hide Werkzeug access logs
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 LOG_FILE = "honeypot.log"
 
@@ -66,7 +70,7 @@ def log(data):
         or device.get("userAgent")
     )
 
-    device_type = data.get("device") or device.get("type")
+    device_type = data.get("device_type") or data.get("type") or device.get("type")
     os_name = data.get("os") or device.get("os")
     browser_name = data.get("browser") or device.get("browser")
 
@@ -103,8 +107,8 @@ def log(data):
         }
     }
 
-    with open(LOG_FILE, "a") as f:
-        f.write(json.dumps(enriched, indent=2) + "\n\n")
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(enriched, ensure_ascii=False, indent=2) + "\n\n")
 
 
 # authorize route
@@ -125,7 +129,7 @@ def authorize():
     # session time
     try:
         session_duration = int((time.time() * 1000 - int(start_time)) / 1000)
-    except:
+    except Exception:
         session_duration = 0
 
     # UA parse
