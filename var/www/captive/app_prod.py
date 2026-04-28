@@ -3,6 +3,9 @@ import json
 import time
 import os
 import logging
+from logging.handlers import RotatingFileHandler
+from threading import BoundedSemaphore
+from collections import deque
 from datetime import datetime, timezone
 
 app = Flask(__name__)
@@ -14,6 +17,43 @@ _werkzeug_logger.propagate = False
 _werkzeug_logger.disabled = True
 
 LOG_FILE = os.getenv("HONEYPOT_LOG_FILE", "honeypot.log")
+
+# Defaults are chosen to be safe under abusive load, but adjustable.
+STDOUT_ENABLED = os.getenv("HONEYPOT_STDOUT", "0") == "1"
+PRETTY_STDOUT = os.getenv("HONEYPOT_PRETTY_STDOUT", "1") == "1"
+PRETTY_FILE = os.getenv("HONEYPOT_PRETTY_LOG_FILE", "0") == "1"
+BLOCK_CURL = os.getenv("HONEYPOT_BLOCK_CURL", "0") == "1"
+
+MAX_CONCURRENT = int(os.getenv("HONEYPOT_MAX_CONCURRENT", "200") or "200")
+RATE_LIMIT_PER_SEC = int(os.getenv("HONEYPOT_RATE_LIMIT_PER_SEC", "50") or "50")
+
+LOG_MAX_BYTES = int(os.getenv("HONEYPOT_LOG_MAX_BYTES", str(10 * 1024 * 1024)))
+LOG_BACKUP_COUNT = int(os.getenv("HONEYPOT_LOG_BACKUP_COUNT", "5") or "5")
+
+_semaphore = BoundedSemaphore(MAX_CONCURRENT)
+_rate_window_by_ip: dict[str, deque[float]] = {}
+
+_event_logger = logging.getLogger("honeypot")
+if not _event_logger.handlers:
+    _handler = RotatingFileHandler(
+        LOG_FILE,
+        maxBytes=LOG_MAX_BYTES,
+        backupCount=LOG_BACKUP_COUNT,
+        encoding="utf-8",
+        delay=True,
+    )
+    _handler.setFormatter(logging.Formatter("%(message)s"))
+    _event_logger.addHandler(_handler)
+_event_logger.setLevel(logging.INFO)
+_event_logger.propagate = False
+
+
+def _normalize_device_type(value):
+    if isinstance(value, dict):
+        return value.get("type") or "unknown"
+    if isinstance(value, str) and value:
+        return value
+    return "unknown"
 
 
 # user agent parsing
@@ -81,7 +121,7 @@ def log(data: dict):
         },
         "device": {
             "user_agent": device.get("user_agent"),
-            "type": device.get("type"),
+            "type": _normalize_device_type(device.get("type")),
             "os": device.get("os"),
             "browser": device.get("browser"),
         },
@@ -94,74 +134,106 @@ def log(data: dict):
         },
     }
 
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps(enriched, ensure_ascii=False, indent=2) + "\n\n")
+    if PRETTY_FILE:
+        _event_logger.info(json.dumps(enriched, ensure_ascii=False, indent=2) + "\n")
+    else:
+        _event_logger.info(json.dumps(enriched, ensure_ascii=False, separators=(",", ":")))
 
 
 @app.route("/authorize")
 def authorize():
-    ip = request.remote_addr
+    if not _semaphore.acquire(blocking=False):
+        return redirect("/success.html")
 
-    ap_raw = request.args.get("ap", "")
-    ssid_raw = request.args.get("ssid", "")
-
-    ap = (ap_raw or "").strip() or None
-    ssid = (ssid_raw or "").strip() or None
-    start_time = request.args.get("startTime")
-
-    email = request.args.get("email", "")
-    password = request.args.get("password", "")
-
-    user_agent = request.headers.get("User-Agent", "")
-
-    # session time
     try:
-        session_duration = int((time.time() * 1000 - int(start_time)) / 1000)
-    except Exception:
-        session_duration = 0
+        ip = request.remote_addr
 
-    # UA parse
-    device_type, os_name, browser_name = parse_user_agent(user_agent)
+        ap_raw = request.args.get("ap", "")
+        ssid_raw = request.args.get("ssid", "")
 
-    email_clean = (email or "").strip()
-    password_clean = (password or "").strip()
+        ap = (ap_raw or "").strip() or None
+        ssid = (ssid_raw or "").strip() or None
+        start_time = request.args.get("startTime")
 
-    # never store plaintext credentials in prod
-    email_provided = bool(email_clean)
-    password_len = len(password_clean) if password_clean else 0
+        email = request.args.get("email", "")
+        password = request.args.get("password", "")
 
-    log_entry = {
-        "event": "login",
-        "session_duration_sec": session_duration,
-        "network": {"ip": ip, "ap": ap, "ssid": ssid},
-        "credentials": {
-            "email_provided": email_provided,
-            "password_len": password_len,
-        },
-        "device": {
-            "user_agent": user_agent,
-            "type": device_type,
-            "os": os_name,
-            "browser": browser_name,
-        },
-    }
+        user_agent = request.headers.get("User-Agent", "")
 
-    log(log_entry)
+        if BLOCK_CURL and "curl" in user_agent.lower():
+            return redirect("/success.html")
 
-    raw_event = {
-        "event": "login",
-        "session_duration_sec": session_duration,
-        "network": {"ip": ip, "ap": ap_raw, "ssid": ssid_raw},
-        "credentials": {"email_provided": email_provided, "password_len": password_len},
-        "device": {
-            "user_agent": user_agent,
-            "type": device_type,
-            "os": os_name,
-            "browser": browser_name,
-        },
-    }
-    print(json.dumps(raw_event, ensure_ascii=False, indent=2))
-    return redirect("/success.html")
+        if RATE_LIMIT_PER_SEC > 0 and ip:
+            now = time.time()
+            q = _rate_window_by_ip.get(ip)
+            if q is None:
+                q = deque()
+                _rate_window_by_ip[ip] = q
+            while q and (now - q[0]) > 1.0:
+                q.popleft()
+            if len(q) >= RATE_LIMIT_PER_SEC:
+                return redirect("/success.html")
+            q.append(now)
+
+        # session time
+        try:
+            session_duration = int((time.time() * 1000 - int(start_time)) / 1000)
+        except Exception:
+            session_duration = 0
+
+        # UA parse
+        device_type, os_name, browser_name = parse_user_agent(user_agent)
+
+        email_clean = (email or "").strip()
+        password_clean = (password or "").strip()
+
+        # never store plaintext credentials in prod
+        email_provided = bool(email_clean)
+        password_len = len(password_clean) if password_clean else 0
+
+        log_entry = {
+            "event": "login",
+            "session_duration_sec": session_duration,
+            "network": {"ip": ip, "ap": ap, "ssid": ssid},
+            "credentials": {
+                "email_provided": email_provided,
+                "password_len": password_len,
+            },
+            "device": {
+                "user_agent": user_agent,
+                "type": device_type,
+                "os": os_name,
+                "browser": browser_name,
+            },
+        }
+
+        log(log_entry)
+
+        if STDOUT_ENABLED:
+            raw_event = {
+                "event": "login",
+                "session_duration_sec": session_duration,
+                "network": {"ip": ip, "ap": ap_raw, "ssid": ssid_raw},
+                "credentials": {"email_provided": email_provided, "password_len": password_len},
+                "device": {
+                    "user_agent": user_agent,
+                    "type": device_type,
+                    "os": os_name,
+                    "browser": browser_name,
+                },
+            }
+            print(
+                json.dumps(
+                    raw_event,
+                    ensure_ascii=False,
+                    indent=2 if PRETTY_STDOUT else None,
+                    separators=None if PRETTY_STDOUT else (",", ":"),
+                )
+            )
+
+        return redirect("/success.html")
+    finally:
+        _semaphore.release()
 
 
 if __name__ == "__main__":

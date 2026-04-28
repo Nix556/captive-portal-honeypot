@@ -12,6 +12,14 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)
 LOG_FILE = "honeypot.log"
 
 
+def _normalize_device_type(value):
+    if isinstance(value, dict):
+        return value.get("type") or "unknown"
+    if isinstance(value, str) and value:
+        return value
+    return "unknown"
+
+
 # user agent parsing
 def parse_user_agent(ua):
     device = "unknown"
@@ -70,7 +78,7 @@ def log(data):
         or device.get("userAgent")
     )
 
-    device_type = data.get("device_type") or data.get("type") or device.get("type")
+    device_type = _normalize_device_type(data.get("device_type") or data.get("type") or device.get("type"))
     os_name = data.get("os") or device.get("os")
     browser_name = data.get("browser") or device.get("browser")
 
