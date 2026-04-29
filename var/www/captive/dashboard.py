@@ -143,14 +143,14 @@ def create_dashboard_blueprint(
             
         if pw_filter:
             try:
-                pw_min, pw_max = 0, 999
                 if '-' in pw_filter:
-                    parts = pw_filter.split('-')
-                    pw_min = int(parts[0]) if parts[0] else 0
-                    pw_max = int(parts[1]) if len(parts) > 1 and parts[1] else 999
+                    parts = pw_filter.split('-', 1)
+                    pw_min = int(parts[0].strip()) if parts[0].strip() else 0
+                    pw_max = int(parts[1].strip()) if parts[1].strip() else 999
                 else:
                     pw_min = pw_max = int(pw_filter)
-                filtered_events = [e for e in filtered_events if pw_min <= (e.get("password_len") or 0) <= pw_max]
+                filtered_events = [e for e in filtered_events
+                                   if pw_min <= (e.get("password_len") or 0) <= pw_max]
             except ValueError:
                 pass
 
@@ -752,7 +752,7 @@ document.getElementById('filterDevice').oninput = () => auto || load();
 document.getElementById('filterPW').oninput = () => auto || load();
 
 load();
-timer = setInterval(load, 5000);
+toggleAuto();
 </script>
 </body>
 </html>"""
