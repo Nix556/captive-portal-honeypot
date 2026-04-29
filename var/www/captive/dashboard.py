@@ -635,6 +635,7 @@ tr.new {
 let auto = true, timer, isDark = false;
 let currentSort = {by: 'time', dir: 'desc'};
 let lastRowCount = 0;
+let firstLoad = true;
 
 const rowsEl = document.getElementById('rows');
 const statusEl = document.getElementById('status');
@@ -700,8 +701,9 @@ async function load() {
         const events = data.events || [];
         const rowCount = events.length;
         
-        const isNewData = rowCount > lastRowCount;
+        const isNewData = !firstLoad && rowCount > lastRowCount;
         lastRowCount = rowCount;
+        if (firstLoad) firstLoad = false;
         
         rowsEl.innerHTML = events.map((e,i) => `
             <tr class="${isNewData && i<3 ? 'new' : ''}">
