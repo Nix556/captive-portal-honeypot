@@ -400,8 +400,8 @@ async function load(){
                 <td>${i + 1}</td>
                 <td>${new Date(e.timestamp_utc || "").toLocaleTimeString("da-DK")}</td>
                 <td>${e.ip || ""}</td>
-                <td>${e.ap || "unknown"}</td>
-                <td>${e.ssid || "unknown"}</td>
+                <td>${e.ap || "-"}</td>
+                <td>${e.ssid || "-"}</td>
                 <td><span class="badge">${e.device_type || ""}</span></td>
                 <td>${e.os || ""}</td>
                 <td>${e.browser || ""}</td>
