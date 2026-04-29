@@ -440,9 +440,30 @@ h1 {
 .table-container {
     border: 1px solid var(--border);
     border-radius: 10px;
-    overflow: hidden;
+    overflow-y: auto;
     max-height: 500px;
     background: var(--bg-table);
+    scrollbar-width: thin;  /* Firefox */
+    scrollbar-color: #cbd5e1 var(--border-light);
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.table-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: var(--border-light);
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 table {
