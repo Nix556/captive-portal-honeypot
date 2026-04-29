@@ -83,7 +83,6 @@ def _sanitize_event(event: dict[str, Any]) -> dict[str, Any]:
         "event": event.get("event"),
         "timestamp_utc": ts.get("utc"),
         "ip": network.get("ip"),
-        "ap": network.get("ap") or None,
         "ssid": network.get("ssid"),
         "session_id": session.get("id") or event.get("session_id"),
         "session_duration_sec": session.get("duration_sec") or event.get("session_duration_sec") or 0,
@@ -127,10 +126,33 @@ def create_dashboard_blueprint(
         # Get sort parameter
         sort_by = request.args.get("sort_by", "time")
         sort_dir = request.args.get("sort_dir", "desc")
+        
+        # Get filter parameters - KUN DEVICE OG PASSWORD LENGTH
+        device_filter = request.args.get("filter_device", "").strip().lower()
+        pw_filter = request.args.get("filter_pw", "").strip().lower()
 
         text = _read_tail_text(log_file, max_tail_bytes)
         events = _extract_json_objects(text)
         sanitized_events = [_sanitize_event(e) for e in events]
+
+        # Apply filters - KUN DEVICE OG PASSWORD LENGTH
+        filtered_events = sanitized_events
+        
+        if device_filter:
+            filtered_events = [e for e in filtered_events if device_filter in (e.get("device_type") or "").lower()]
+            
+        if pw_filter:
+            try:
+                pw_min, pw_max = 0, 999
+                if '-' in pw_filter:
+                    parts = pw_filter.split('-')
+                    pw_min = int(parts[0]) if parts[0] else 0
+                    pw_max = int(parts[1]) if len(parts) > 1 and parts[1] else 999
+                else:
+                    pw_min = pw_max = int(pw_filter)
+                filtered_events = [e for e in filtered_events if pw_min <= (e.get("password_len") or 0) <= pw_max]
+            except ValueError:
+                pass  # ignore invalid pw filter
 
         # Sort events
         def sort_key(event):
@@ -140,19 +162,27 @@ def create_dashboard_blueprint(
                 return event["ip"] or ""
             elif sort_by == "session":
                 return event["session_id"] or ""
-            elif sort_by == "ap":
-                return event["ap"] or ""
+            elif sort_by == "pw":
+                return event["password_len"] or 0
+            elif sort_by == "ssid":
+                return event["ssid"] or ""
+            elif sort_by == "device":
+                return event["device_type"] or ""
             return ""
 
         reverse = sort_dir == "desc"
-        sanitized_events.sort(key=sort_key, reverse=reverse)
-        events = sanitized_events[-limit:]  # Take last N after sorting
+        filtered_events.sort(key=sort_key, reverse=reverse)
+        events = filtered_events[-limit:]  # Take last N after sorting
 
         return jsonify({
             "log_file": log_file,
             "count": len(events),
             "sort_by": sort_by,
             "sort_dir": sort_dir,
+            "filters": {
+                "device": device_filter,
+                "pw": pw_filter
+            },
             "events": events
         })
 
@@ -219,7 +249,53 @@ button {
 
 button:hover { background:#0b1220; }
 
+button.clear {
+    background: #6b7280;
+    border-color: #6b7280;
+}
+
+button.clear:hover {
+    background: #4b5563;
+}
+
 .small { font-size:12px; color:#6b7280; }
+
+/* FILTERS */
+.filters {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filter-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.filter-group label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #374151;
+    white-space: nowrap;
+}
+
+.filter-input {
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    width: 140px;
+    background: white;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
 
 /* SORT BUTTONS */
 .sort-btn {
@@ -250,7 +326,7 @@ button:hover { background:#0b1220; }
     font-size: 10px;
 }
 
-/* TABLE CONTAINER - NY */
+/* TABLE CONTAINER */
 .table-container {
     max-height: 500px;
     overflow-y: auto;
@@ -259,7 +335,7 @@ button:hover { background:#0b1220; }
     margin-top: 14px;
 }
 
-/* STICKY HEADER - NY */
+/* STICKY HEADER */
 .table-container table {
     width: 100%;
     border-collapse: collapse;
@@ -411,11 +487,24 @@ button:hover { background:#0b1220; }
     <div class="actions">
         <button onclick="load()">Opdater</button>
         <button onclick="toggleAuto()" id="autoBtn">Auto: ON</button>
+        <button onclick="clearFilters()" class="clear">Ryd filtre</button>
 
         <span class="small">
             <span id="dot" class="live-dot offline"></span>
             <span id="status">offline</span>
         </span>
+    </div>
+</div>
+
+<!-- FILTERS SECTION - KUN DEVICE OG PW LENGTH -->
+<div class="filters">
+    <div class="filter-group">
+        <label>Device:</label>
+        <input type="text" class="filter-input" id="filterDevice" placeholder="f.eks. mobile">
+    </div>
+    <div class="filter-group">
+        <label>Pw len:</label>
+        <input type="text" class="filter-input" id="filterPW" placeholder="f.eks. 8-16 eller 12">
     </div>
 </div>
 
@@ -453,13 +542,12 @@ button:hover { background:#0b1220; }
 <th onclick="setSort('time')" data-sort="time">#</th>
 <th onclick="setSort('time')" data-sort="time">Tid</th>
 <th onclick="setSort('ip')" data-sort="ip">IP</th>
-<th onclick="setSort('ap')" data-sort="ap">AP</th>
 <th>SSID</th>
-<th>Device</th>
+<th onclick="setSort('device')" data-sort="device">Device</th>
 <th>OS</th>
 <th>Browser</th>
 <th>Email</th>
-<th>Pw</th>
+<th onclick="setSort('pw')" data-sort="pw">Pw len</th>
 </tr>
 </thead>
 <tbody id="rows"></tbody>
@@ -530,16 +618,29 @@ function setSort(sortBy) {
     load();
 }
 
+function clearFilters() {
+    document.getElementById("filterDevice").value = "";
+    document.getElementById("filterPW").value = "";
+    load();
+}
+
+function getFilters() {
+    return {
+        filter_device: document.getElementById("filterDevice").value,
+        filter_pw: document.getElementById("filterPW").value
+    };
+}
+
 async function load(){
     const qs = new URLSearchParams(location.search);
     const token = qs.get("token") || "";
 
     try {
-        // FIXED: Brug URLSearchParams i stedet for new URL()
         const params = new URLSearchParams({
             limit: '200',
             sort_by: currentSort.by,
-            sort_dir: currentSort.dir
+            sort_dir: currentSort.dir,
+            ...getFilters()
         });
         if (token) {
             params.set('token', token);
@@ -562,7 +663,6 @@ async function load(){
                 <td>${i + 1}</td>
                 <td>${new Date(e.timestamp_utc || "").toLocaleTimeString("da-DK")}</td>
                 <td>${e.ip || ""}</td>
-                <td>${e.ap || "-"}</td>
                 <td>${e.ssid || "-"}</td>
                 <td><span class="badge">${e.device_type || ""}</span></td>
                 <td>${e.os || ""}</td>
@@ -600,6 +700,10 @@ function toggleAuto(){
     if(timer) clearInterval(timer);
     if(auto) timer = setInterval(load, 5000);
 }
+
+// Auto-update filters on input (kun device og pw)
+document.getElementById("filterDevice").addEventListener("input", () => { if(!auto) load(); });
+document.getElementById("filterPW").addEventListener("input", () => { if(!auto) load(); });
 
 load();
 if (auto) timer = setInterval(load, 5000);
