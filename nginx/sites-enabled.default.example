@@ -7,6 +7,12 @@ server {
     root /var/www/captive;
     index index.html;
 
+    # Security headers
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy no-referrer always;
+
     # Static files (HTML/CSS/JS)
     location / {
         try_files $uri $uri/ =404;
