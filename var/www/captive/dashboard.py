@@ -123,11 +123,11 @@ def create_dashboard_blueprint(
 
         limit = max(1, min(limit, 2000))
         
-        # Get sort parameter
+        # get sort parameters
         sort_by = request.args.get("sort_by", "time")
         sort_dir = request.args.get("sort_dir", "desc")
         
-        # Get filter parameters - KUN DEVICE OG PASSWORD LENGTH
+        # get filter parameters
         device_filter = request.args.get("filter_device", "").strip().lower()
         pw_filter = request.args.get("filter_pw", "").strip().lower()
 
@@ -135,7 +135,7 @@ def create_dashboard_blueprint(
         events = _extract_json_objects(text)
         sanitized_events = [_sanitize_event(e) for e in events]
 
-        # Apply filters - KUN DEVICE OG PASSWORD LENGTH
+        # apply filters
         filtered_events = sanitized_events
         
         if device_filter:
@@ -152,9 +152,9 @@ def create_dashboard_blueprint(
                     pw_min = pw_max = int(pw_filter)
                 filtered_events = [e for e in filtered_events if pw_min <= (e.get("password_len") or 0) <= pw_max]
             except ValueError:
-                pass  # ignore invalid pw filter
+                pass
 
-        # Sort events
+        # sort events
         def sort_key(event):
             if sort_by == "time":
                 return event["timestamp_utc"] or ""
@@ -172,7 +172,7 @@ def create_dashboard_blueprint(
 
         reverse = sort_dir == "desc"
         filtered_events.sort(key=sort_key, reverse=reverse)
-        events = filtered_events[-limit:]  # Take last N after sorting
+        events = filtered_events[-limit:]
 
         return jsonify({
             "log_file": log_file,
@@ -196,99 +196,202 @@ def create_dashboard_blueprint(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard</title>
+<title>Honeypot Live - Odense</title>
 
 <style>
+* { box-sizing: border-box; }
+
+:root {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --bg-table: #ffffff;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+    --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --bg-table: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --border: #475569;
+    --border-light: #475569;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+}
+
 body {
     margin: 0;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    background: #f6f7f9;
-    color: #111827;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .wrap {
-    max-width: 900px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 36px 16px;
+    padding: 1.5rem;
 }
 
 .card {
-    background: #fff;
-    border-radius: 10px;
-    padding: 22px;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
 }
 
-h1 { margin: 0; font-size: 20px; }
+h1 {
+    margin: 0 0 0.25rem 0;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.tagline {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+    font-weight: 400;
+}
 
 .topbar {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    flex-wrap:wrap;
-    gap:12px;
-    margin-bottom:12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
 }
 
 .actions {
-    display:flex;
-    gap:10px;
-    align-items:center;
-    flex-wrap:wrap;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
 }
 
-button {
-    padding:10px 12px;
-    border-radius:8px;
-    border:1px solid #111827;
-    background:#111827;
-    color:#fff;
-    font-weight:600;
-    cursor:pointer;
+.btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
 }
 
-button:hover { background:#0b1220; }
-
-button.clear {
-    background: #6b7280;
-    border-color: #6b7280;
+.refresh { 
+    background: #3b82f6; 
+    color: white; 
+    border-color: #3b82f6;
 }
 
-button.clear:hover {
-    background: #4b5563;
+.refresh:hover { 
+    background: #2563eb; 
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
-.small { font-size:12px; color:#6b7280; }
+.toggle { 
+    background: #10b981; 
+    color: white; 
+    border-color: #10b981;
+}
 
-/* FILTERS */
+.toggle.off { 
+    background: #94a3b8; 
+    border-color: #94a3b8; 
+}
+
+.toggle.off:hover { background: #64748b; }
+
+.clear { 
+    background: var(--bg-card); 
+    color: #ef4444; 
+    border-color: var(--border);
+}
+.clear:hover { 
+    background: #fef2f2; 
+    border-color: #ef4444;
+}
+
+.dark-toggle {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-color: var(--border);
+    padding: 0.5rem;
+    min-width: 44px;
+}
+
+.dark-toggle:hover {
+    background: var(--border-light);
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: pulse 1.5s infinite;
+}
+
+.live .live-dot { background: #10b981; }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.1); }
+}
+
 .filters {
     display: flex;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
     flex-wrap: wrap;
-    align-items: center;
 }
 
 .filter-group {
     display: flex;
-    gap: 6px;
-    align-items: center;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 180px;
 }
 
-.filter-group label {
-    font-size: 12px;
-    font-weight: 500;
-    color: #374151;
-    white-space: nowrap;
+.filter-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .filter-input {
-    padding: 6px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 12px;
-    width: 140px;
-    background: white;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
 }
 
 .filter-input:focus {
@@ -297,418 +400,337 @@ button.clear:hover {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* SORT BUTTONS */
-.sort-btn {
-    padding: 6px 12px;
-    font-size: 11px;
-    background: #f3f4f6;
-    color: #374151;
-    border: 1px solid #d1d5db;
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
 }
 
-.sort-btn:hover {
-    background: #e5e7eb;
+.kpi {
+    text-align: center;
+    padding: 1rem;
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    background: var(--bg-card);
+    transition: all 0.2s ease;
 }
 
-.sort-btn.active {
-    background: #3b82f6;
-    color: white;
-    border-color: #2563eb;
+.kpi:hover {
+    border-color: var(--border);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.sort-btn.asc::after {
-    content: " ▲";
-    font-size: 10px;
+.kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
 }
 
-.sort-btn.desc::after {
-    content: " ▼";
-    font-size: 10px;
+.kpi-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-/* TABLE CONTAINER */
 .table-container {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
     max-height: 500px;
-    overflow-y: auto;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    margin-top: 14px;
+    background: var(--bg-table);
 }
 
-/* STICKY HEADER */
-.table-container table {
+table {
     width: 100%;
     border-collapse: collapse;
 }
 
-.table-container thead {
+thead {
     position: sticky;
     top: 0;
-    background: #f9fafb;
-    z-index: 10;
+    background: var(--bg-secondary);
+    border-bottom: 2px solid var(--border);
 }
 
-.table-container thead th {
-    font-size: 12px;
-    padding: 12px 8px;
-    border-bottom: 2px solid #e5e7eb;
+th {
+    padding: 0.75rem 0.5rem;
     text-align: left;
     font-weight: 600;
-    background: #f9fafb;
-    color: #374151;
+    font-size: 0.75rem;
+    color: var(--text-primary);
     cursor: pointer;
-    user-select: none;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
 }
 
-.table-container thead th:hover {
-    background: #f3f4f6;
+th:hover {
+    background: var(--border-light);
 }
 
-.table-container tbody td {
-    font-size: 12px;
-    padding: 12px 8px;
-    border-bottom: 1px solid #f3f4f6;
-    text-align: left;
+td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-light);
 }
 
-/* Scrollbar styling */
-.table-container::-webkit-scrollbar {
-    width: 8px;
+tr:hover {
+    background: var(--border-light);
 }
 
-.table-container::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 4px;
+tr.new {
+    background: #dbeafe !important;
+    animation: flash 0.6s ease-out;
 }
 
-.table-container::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
-}
-
-.table-container::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+@keyframes flash {
+    0%, 100% { background: #dbeafe; }
+    50% { background: #bfdbfe; }
 }
 
 .badge {
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    background: #f3f4f6;
-}
-
-.live-dot {
-    width:8px;
-    height:8px;
-    border-radius:50%;
-    display:inline-block;
-    margin-right:6px;
-}
-
-/* GREEN PULSE */
-.online {
-    background:#22c55e;
-    animation: pulse-green 1.5s infinite;
-}
-
-/* RED PULSE */
-.offline {
-    background:#ef4444;
-    animation: pulse-red 1.5s infinite;
-}
-
-@keyframes pulse-green {
-    0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
-    70%  { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
-    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
-}
-
-@keyframes pulse-red {
-    0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.6); }
-    70%  { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
-    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
-}
-
-.kpis {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 10px;
-    margin: 14px 0 18px 0;
-}
-
-.kpi {
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 12px;
-    background: #fff;
-}
-
-.kpi-value {
-    font-size: 18px;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #3b82f6;
+    color: white;
+    border-radius: 12px;
+    font-size: 0.65rem;
     font-weight: 600;
-    color: #111827;
+    text-transform: uppercase;
 }
 
-.kpi-label {
-    font-size: 11px;
-    color: #6b7280;
-    margin-top: 4px;
+.status-yes { background: #10b981; }
+.status-no { background: #94a3b8; }
+
+::-webkit-scrollbar {
+    width: 6px;
 }
 
-.table-container tbody tr:first-child {
-    background: #f0f9ff !important;
-    animation: subtleBlink 2s ease-in-out infinite !important;
+::-webkit-scrollbar-track {
+    background: var(--border-light);
 }
 
-@keyframes subtleBlink {
-    0%, 100% { 
-        background: #f0f9ff !important; 
-        box-shadow: 0 0 6px rgba(59, 130, 246, 0.25) !important;
-    }
-    50% { 
-        background: #e0f2fe !important; 
-        box-shadow: 0 0 16px rgba(59, 130, 246, 0.12) !important;
-    }
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+@media (max-width: 768px) {
+    .wrap { padding: 1rem; }
+    .card { padding: 1rem; }
+    h1 { font-size: 1.5rem; }
+    .kpis { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+    .filters { flex-direction: column; }
+    .filter-group { min-width: 100%; }
 }
 </style>
 </head>
 
-<body>
-
+<body data-theme="light">
 <div class="wrap">
 <div class="card">
-
-<div class="topbar">
-    <div>
-        <h1>Honeypot Dashboard</h1>
-        <div class="small">Odense · Demo</div>
+    <div class="topbar">
+        <div>
+            <h1>Honeypot Live</h1>
+            <div class="tagline">Odense · Demo monitoring</div>
+        </div>
+        <div class="actions">
+            <button class="btn refresh" onclick="load()">Opdater</button>
+            <button class="btn toggle" id="autoBtn">Auto: ON</button>
+            <button class="btn clear" onclick="clearFilters()">Ryd</button>
+            <button class="btn dark-toggle" id="darkToggle" onclick="toggleDarkMode()" title="Dark/Light mode">🌙</button>
+            <div class="status" id="statusLine">
+                <span id="dot" class="live-dot"></span>
+                <span id="status">offline</span>
+            </div>
+        </div>
     </div>
 
-    <div class="actions">
-        <button onclick="load()">Opdater</button>
-        <button onclick="toggleAuto()" id="autoBtn">Auto: ON</button>
-        <button onclick="clearFilters()" class="clear">Ryd filtre</button>
-
-        <span class="small">
-            <span id="dot" class="live-dot offline"></span>
-            <span id="status">offline</span>
-        </span>
-    </div>
-</div>
-
-<!-- FILTERS SECTION - KUN DEVICE OG PW LENGTH -->
-<div class="filters">
-    <div class="filter-group">
-        <label>Device:</label>
-        <input type="text" class="filter-input" id="filterDevice" placeholder="f.eks. mobile">
-    </div>
-    <div class="filter-group">
-        <label>Pw len:</label>
-        <input type="text" class="filter-input" id="filterPW" placeholder="f.eks. 8-16 eller 12">
-    </div>
-</div>
-
-<div class="kpis">
-    <div class="kpi">
-        <div class="kpi-value" id="kpi-events">0</div>
-        <div class="kpi-label">Events (5 min)</div>
+    <div class="filters">
+        <div class="filter-group">
+            <label class="filter-label">Device filter</label>
+            <input class="filter-input" id="filterDevice" placeholder="mobile, android...">
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Password length</label>
+            <input class="filter-input" id="filterPW" placeholder="8-16 eller 12">
+        </div>
     </div>
 
-    <div class="kpi">
-        <div class="kpi-value" id="kpi-ips">0</div>
-        <div class="kpi-label">Unikke IP'er</div>
+    <div class="kpis">
+        <div class="kpi">
+            <div class="kpi-value" id="kpi-events">-</div>
+            <div class="kpi-label">Events (5min)</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-value" id="kpi-ips">-</div>
+            <div class="kpi-label">Unikke IPs</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-value" id="kpi-sessions">-</div>
+            <div class="kpi-label">Sessions</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-value" id="kpi-pw">-</div>
+            <div class="kpi-label">Gns. pw længde</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-value" id="kpi-rate">-</div>
+            <div class="kpi-label">Events/min</div>
+        </div>
     </div>
 
-    <div class="kpi">
-        <div class="kpi-value" id="kpi-sessions">0</div>
-        <div class="kpi-label">Sessions</div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th onclick="setSort('time')" data-sort="time">#</th>
+                    <th onclick="setSort('time')" data-sort="time">Tid</th>
+                    <th onclick="setSort('ip')" data-sort="ip">IP</th>
+                    <th>SSID</th>
+                    <th onclick="setSort('device')" data-sort="device">Device</th>
+                    <th>OS</th>
+                    <th>Browser</th>
+                    <th>Email</th>
+                    <th onclick="setSort('pw')" data-sort="pw">Pw len</th>
+                </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+        </table>
     </div>
-
-    <div class="kpi">
-        <div class="kpi-value" id="kpi-pw">0</div>
-        <div class="kpi-label">Avg input length</div>
-    </div>
-
-    <div class="kpi">
-        <div class="kpi-value" id="kpi-rate">0</div>
-        <div class="kpi-label">Events/min</div>
-    </div>
-</div>
-
-<div class="table-container">
-<table>
-<thead>
-<tr>
-<th onclick="setSort('time')" data-sort="time">#</th>
-<th onclick="setSort('time')" data-sort="time">Tid</th>
-<th onclick="setSort('ip')" data-sort="ip">IP</th>
-<th>SSID</th>
-<th onclick="setSort('device')" data-sort="device">Device</th>
-<th>OS</th>
-<th>Browser</th>
-<th>Email</th>
-<th onclick="setSort('pw')" data-sort="pw">Pw len</th>
-</tr>
-</thead>
-<tbody id="rows"></tbody>
-</table>
-</div>
-
 </div>
 </div>
 
 <script>
-const rows = document.getElementById("rows");
-const statusEl = document.getElementById("status");
-const dot = document.getElementById("dot");
+let auto = true, timer, isDark = false;
+let currentSort = {by: 'time', dir: 'desc'};
+let lastRowCount = 0;
 
-let auto = true;
-let timer = null;
-let previousEventCount = 0;
-let currentSort = { by: 'time', dir: 'desc' };
+const rowsEl = document.getElementById('rows');
+const statusEl = document.getElementById('status');
+const dotEl = document.getElementById('dot');
+const statusLine = document.getElementById('statusLine');
 
-function setLive(v){
-    dot.className = "live-dot " + (v ? "online" : "offline");
-    statusEl.textContent = v ? "live" : "offline";
+function toggleDarkMode() {
+    isDark = !isDark;
+    document.body.dataset.theme = isDark ? 'dark' : 'light';
+    document.getElementById('darkToggle').textContent = isDark ? '☀️' : '🌙';
+    localStorage.setItem('darkMode', isDark);
 }
 
-function computeKpis(events){
-    const now = Date.now();
-    const fiveMin = 5 * 60 * 1000;
-
-    const recent = events.filter(e => {
-        const t = new Date(e.timestamp_utc || 0).getTime();
-        return now - t < fiveMin;
-    });
-
-    const ips = new Set(events.map(e => e.ip).filter(Boolean));
-    const sessions = new Set(events.map(e => e.session_id).filter(Boolean));
-
-    const avgInput = events.length
-        ? (events.reduce((a, e) => a + (e.password_len || 0), 0) / events.length)
-        : 0;
-
-    const rate = recent.length / 5;
-
-    return {
-        events5m: recent.length,
-        ips: ips.size,
-        sessions: sessions.size,
-        avgInput: avgInput.toFixed(1),
-        rate: rate.toFixed(1)
-    };
+function setStatus(live) {
+    if (live) {
+        statusLine.classList.add('live');
+        statusEl.textContent = 'live';
+        dotEl.style.background = '#10b981';
+    } else {
+        statusLine.classList.remove('live');
+        statusEl.textContent = 'offline';
+        dotEl.style.background = '#ef4444';
+    }
 }
 
-function updateSortIndicators() {
-    document.querySelectorAll('th[data-sort]').forEach(th => {
-        th.classList.remove('active', 'asc', 'desc');
-        if (th.dataset.sort === currentSort.by) {
-            th.classList.add('active', currentSort.dir);
-        }
-    });
+function updateKpis(events) {
+    const now = Date.now(), fiveMin = 5*60*1000;
+    const recent = events.filter(e => now - new Date(e.timestamp_utc||0) < fiveMin);
+    
+    document.getElementById('kpi-events').textContent = recent.length;
+    document.getElementById('kpi-ips').textContent = new Set(events.map(e=>e.ip).filter(Boolean)).size;
+    document.getElementById('kpi-sessions').textContent = new Set(events.map(e=>e.session_id).filter(Boolean)).size;
+    document.getElementById('kpi-pw').textContent = events.length ? (events.reduce((a,e)=>a+(e.password_len||0),0)/events.length|0) : 0;
+    document.getElementById('kpi-rate').textContent = (recent.length/5).toFixed(1);
 }
 
-function setSort(sortBy) {
-    if (currentSort.by === sortBy) {
+function setSort(field) {
+    if (currentSort.by === field) {
         currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
     } else {
-        currentSort.by = sortBy;
+        currentSort.by = field;
         currentSort.dir = 'desc';
     }
     load();
 }
 
-function clearFilters() {
-    document.getElementById("filterDevice").value = "";
-    document.getElementById("filterPW").value = "";
-    load();
-}
-
-function getFilters() {
-    return {
-        filter_device: document.getElementById("filterDevice").value,
-        filter_pw: document.getElementById("filterPW").value
-    };
-}
-
-async function load(){
-    const qs = new URLSearchParams(location.search);
-    const token = qs.get("token") || "";
-
+async function load() {
     try {
         const params = new URLSearchParams({
-            limit: '200',
+            limit: 150,
             sort_by: currentSort.by,
             sort_dir: currentSort.dir,
-            ...getFilters()
+            filter_device: document.getElementById('filterDevice').value,
+            filter_pw: document.getElementById('filterPW').value
         });
-        if (token) {
-            params.set('token', token);
-        }
         
-        const url = `/api/events?${params.toString()}`;
-        const res = await fetch(url);
+        const token = new URLSearchParams(location.search).get('token');
+        if (token) params.set('token', token);
         
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-        }
-        
+        const res = await fetch(`/api/events?${params}`);
         const data = await res.json();
-
-        const ev = data.events || [];
-        const currentEventCount = ev.length;
-
-        const newRowsHtml = ev.map((e, i) => `
-            <tr data-index="${i}">
-                <td>${i + 1}</td>
-                <td>${new Date(e.timestamp_utc || "").toLocaleTimeString("da-DK")}</td>
-                <td>${e.ip || ""}</td>
-                <td>${e.ssid || "-"}</td>
-                <td><span class="badge">${e.device_type || ""}</span></td>
-                <td>${e.os || ""}</td>
-                <td>${e.browser || ""}</td>
-                <td>${e.email_provided ? "yes" : "no"}</td>
-                <td>${e.password_len || 0}</td>
+        
+        const events = data.events || [];
+        const rowCount = events.length;
+        
+        const isNewData = rowCount > lastRowCount;
+        lastRowCount = rowCount;
+        
+        rowsEl.innerHTML = events.map((e,i) => `
+            <tr class="${isNewData && i<3 ? 'new' : ''}">
+                <td>${i+1}</td>
+                <td>${new Date(e.timestamp_utc||'').toLocaleTimeString('da-DK')}</td>
+                <td>${e.ip||'-'}</td>
+                <td>${e.ssid||'-'}</td>
+                <td><span class="badge">${e.device_type||''}</span></td>
+                <td>${e.os||''}</td>
+                <td>${e.browser||''}</td>
+                <td class="status-${e.email_provided ? 'yes' : 'no'}">${e.email_provided ? 'Ja' : 'Nej'}</td>
+                <td>${e.password_len||0}</td>
             </tr>
-        `).join("");
-
-        rows.innerHTML = newRowsHtml;
-        updateSortIndicators();
-
-        previousEventCount = currentEventCount;
-
-        const k = computeKpis(ev);
-
-        document.getElementById("kpi-events").textContent = k.events5m;
-        document.getElementById("kpi-ips").textContent = k.ips;
-        document.getElementById("kpi-sessions").textContent = k.sessions;
-        document.getElementById("kpi-pw").textContent = k.avgInput;
-        document.getElementById("kpi-rate").textContent = k.rate;
-
-        setLive(true);
-
-    } catch (err) {
-        console.error('Load error:', err);
-        setLive(false);
+        `).join('');
+        
+        updateKpis(events);
+        setStatus(true);
+        
+    } catch(e) {
+        setStatus(false);
+        console.error(e);
     }
 }
 
-function toggleAuto(){
+function toggleAuto() {
     auto = !auto;
-    document.getElementById("autoBtn").textContent = "Auto: " + (auto ? "ON" : "OFF");
-
-    if(timer) clearInterval(timer);
-    if(auto) timer = setInterval(load, 5000);
+    const btn = document.getElementById('autoBtn');
+    btn.textContent = `Auto: ${auto ? 'ON' : 'OFF'}`;
+    btn.className = auto ? 'btn toggle' : 'btn toggle off';
+    
+    if (timer) clearInterval(timer);
+    if (auto) timer = setInterval(load, 5000);
 }
 
-// Auto-update filters on input (kun device og pw)
-document.getElementById("filterDevice").addEventListener("input", () => { if(!auto) load(); });
-document.getElementById("filterPW").addEventListener("input", () => { if(!auto) load(); });
+function clearFilters() {
+    document.getElementById('filterDevice').value = '';
+    document.getElementById('filterPW').value = '';
+    load();
+}
+
+if (localStorage.getItem('darkMode') === 'true') {
+    toggleDarkMode();
+}
+
+document.getElementById('filterDevice').oninput = () => auto || load();
+document.getElementById('filterPW').oninput = () => auto || load();
 
 load();
-if (auto) timer = setInterval(load, 5000);
+timer = setInterval(load, 5000);
 </script>
-
 </body>
 </html>"""
 
