@@ -39,7 +39,7 @@ Kør dev (logger plaintext):
 
 - Side: `/dashboard`
 - API: `/api/events?limit=200`
-- Tilgå: <10.0.0.10/dashboard?token=TOKEN>
+- Tilgå: `<SERVER-IP/dashboard?token=TOKEN>`
 
 Nginx eksempel config: [nginx/sites-enabled.default.example](nginx/sites-enabled.default.example)
 
