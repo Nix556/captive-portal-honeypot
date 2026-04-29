@@ -11,6 +11,7 @@ Realistisk captive portal flow:
 - Docker + Docker Compose (til Ubiquiti UniFi Controller)
 - Python 3 + venv + pip (til honeypot Flask app)
 - Gunicorn (prod)
+- (valgfrit) .env + dotenv til konfiguration
 - (valgfrit) Nginx (reverse proxy)
 
 ## UniFi Controller
@@ -39,7 +40,8 @@ Kør dev (logger plaintext):
 
 - Side: `/dashboard`
 - API: `/api/events?limit=200`
-- Tilgå: `<SERVER-IP/dashboard?token=TOKEN>`
+- Uden token: `http://<SERVER-IP>/dashboard`
+- Med token: `http://<SERVER-IP>/dashboard?token=TOKEN`
 
 Nginx eksempel config: [nginx/sites-enabled.default.example](nginx/sites-enabled.default.example)
 
