@@ -123,15 +123,38 @@ def create_dashboard_blueprint(
             limit = default_limit
 
         limit = max(1, min(limit, 2000))
+        
+        # Get sort parameter
+        sort_by = request.args.get("sort_by", "time")
+        sort_dir = request.args.get("sort_dir", "desc")
 
         text = _read_tail_text(log_file, max_tail_bytes)
-        events = _extract_json_objects(text)[-limit:]
+        events = _extract_json_objects(text)
+        sanitized_events = [_sanitize_event(e) for e in events]
+
+        # Sort events
+        def sort_key(event):
+            if sort_by == "time":
+                return event["timestamp_utc"] or ""
+            elif sort_by == "ip":
+                return event["ip"] or ""
+            elif sort_by == "session":
+                return event["session_id"] or ""
+            elif sort_by == "ap":
+                return event["ap"] or ""
+            return ""
+
+        reverse = sort_dir == "desc"
+        sanitized_events.sort(key=sort_key, reverse=reverse)
+        events = sanitized_events[-limit:]  # Take last N after sorting
 
         return jsonify({
             "log_file": log_file,
             "count": len(events),
-            "events": [_sanitize_event(e) for e in events]
-})
+            "sort_by": sort_by,
+            "sort_dir": sort_dir,
+            "events": events
+        })
 
     # dashboard page
     @bp.get("/dashboard")
@@ -198,6 +221,35 @@ button:hover { background:#0b1220; }
 
 .small { font-size:12px; color:#6b7280; }
 
+/* SORT BUTTONS */
+.sort-btn {
+    padding: 6px 12px;
+    font-size: 11px;
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.sort-btn:hover {
+    background: #e5e7eb;
+}
+
+.sort-btn.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #2563eb;
+}
+
+.sort-btn.asc::after {
+    content: " ▲";
+    font-size: 10px;
+}
+
+.sort-btn.desc::after {
+    content: " ▼";
+    font-size: 10px;
+}
+
 /* TABLE CONTAINER - NY */
 .table-container {
     max-height: 500px;
@@ -228,6 +280,12 @@ button:hover { background:#0b1220; }
     font-weight: 600;
     background: #f9fafb;
     color: #374151;
+    cursor: pointer;
+    user-select: none;
+}
+
+.table-container thead th:hover {
+    background: #f3f4f6;
 }
 
 .table-container tbody td {
@@ -392,7 +450,17 @@ button:hover { background:#0b1220; }
 <table>
 <thead>
 <tr>
-<th>#</th><th>Tid</th><th>IP</th><th>AP</th><th>SSID</th><th>Device</th><th>OS</th><th>Browser</th><th>Email</th><th>Pw</th></tr>
+<th onclick="setSort('time')" data-sort="time">#</th>
+<th onclick="setSort('time')" data-sort="time">Tid</th>
+<th onclick="setSort('ip')" data-sort="ip">IP</th>
+<th onclick="setSort('ap')" data-sort="ap">AP</th>
+<th>SSID</th>
+<th>Device</th>
+<th>OS</th>
+<th>Browser</th>
+<th>Email</th>
+<th>Pw</th>
+</tr>
 </thead>
 <tbody id="rows"></tbody>
 </table>
@@ -409,6 +477,7 @@ const dot = document.getElementById("dot");
 let auto = true;
 let timer = null;
 let previousEventCount = 0;
+let currentSort = { by: 'time', dir: 'desc' };
 
 function setLive(v){
     dot.className = "live-dot " + (v ? "online" : "offline");
@@ -442,15 +511,50 @@ function computeKpis(events){
     };
 }
 
+function updateSortIndicators() {
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+        th.classList.remove('active', 'asc', 'desc');
+        if (th.dataset.sort === currentSort.by) {
+            th.classList.add('active', currentSort.dir);
+        }
+    });
+}
+
+function setSort(sortBy) {
+    if (currentSort.by === sortBy) {
+        currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
+    } else {
+        currentSort.by = sortBy;
+        currentSort.dir = 'desc';
+    }
+    load();
+}
+
 async function load(){
     const qs = new URLSearchParams(location.search);
     const token = qs.get("token") || "";
 
     try {
-        const res = await fetch("/api/events?limit=200" + (token ? `&token=${token}` : ""));
+        // FIXED: Brug URLSearchParams i stedet for new URL()
+        const params = new URLSearchParams({
+            limit: '200',
+            sort_by: currentSort.by,
+            sort_dir: currentSort.dir
+        });
+        if (token) {
+            params.set('token', token);
+        }
+        
+        const url = `/api/events?${params.toString()}`;
+        const res = await fetch(url);
+        
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+        
         const data = await res.json();
 
-        const ev = (data.events || []).slice().reverse().slice(0, 200);
+        const ev = data.events || [];
         const currentEventCount = ev.length;
 
         const newRowsHtml = ev.map((e, i) => `
@@ -469,6 +573,7 @@ async function load(){
         `).join("");
 
         rows.innerHTML = newRowsHtml;
+        updateSortIndicators();
 
         previousEventCount = currentEventCount;
 
@@ -483,6 +588,7 @@ async function load(){
         setLive(true);
 
     } catch (err) {
+        console.error('Load error:', err);
         setLive(false);
     }
 }
@@ -496,7 +602,7 @@ function toggleAuto(){
 }
 
 load();
-timer = setInterval(load, 5000);
+if (auto) timer = setInterval(load, 5000);
 </script>
 
 </body>
