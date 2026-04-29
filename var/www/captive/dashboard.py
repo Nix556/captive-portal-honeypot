@@ -198,24 +198,69 @@ button:hover { background:#0b1220; }
 
 .small { font-size:12px; color:#6b7280; }
 
-table {
-    width:100%;
-    border-collapse:collapse;
-    margin-top:14px;
+/* TABLE CONTAINER - NY */
+.table-container {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-top: 14px;
 }
 
-th, td {
-    font-size:12px;
-    padding:8px;
-    border-bottom:1px solid #e5e7eb;
-    text-align:left;
+/* STICKY HEADER - NY */
+.table-container table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-container thead {
+    position: sticky;
+    top: 0;
+    background: #f9fafb;
+    z-index: 10;
+}
+
+.table-container thead th {
+    font-size: 12px;
+    padding: 12px 8px;
+    border-bottom: 2px solid #e5e7eb;
+    text-align: left;
+    font-weight: 600;
+    background: #f9fafb;
+    color: #374151;
+}
+
+.table-container tbody td {
+    font-size: 12px;
+    padding: 12px 8px;
+    border-bottom: 1px solid #f3f4f6;
+    text-align: left;
+}
+
+/* Scrollbar styling */
+.table-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 .badge {
-    font-size:11px;
-    padding:2px 6px;
-    border-radius:6px;
-    background:#f3f4f6;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: #f3f4f6;
 }
 
 .live-dot {
@@ -313,7 +358,7 @@ th, td {
 
     <div class="kpi">
         <div class="kpi-value" id="kpi-ips">0</div>
-        <div class="kpi-label">Unikke IP’er</div>
+        <div class="kpi-label">Unikke IP'er</div>
     </div>
 
     <div class="kpi">
@@ -332,6 +377,8 @@ th, td {
     </div>
 </div>
 
+<!-- NY TABLE CONTAINER -->
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -339,6 +386,7 @@ th, td {
 </thead>
 <tbody id="rows"></tbody>
 </table>
+</div>
 
 </div>
 </div>
@@ -366,9 +414,7 @@ function computeKpis(events){
     });
 
     const ips = new Set(events.map(e => e.ip).filter(Boolean));
-
     const sessions = new Set(events.map(e => e.session_id).filter(Boolean));
-
 
     const avgInput = events.length
         ? (events.reduce((a, e) => a + (e.password_len || 0), 0) / events.length)
@@ -410,17 +456,17 @@ async function load(){
             </tr>
         `).join("");
 
-setTimeout(() => {
-    const rows = document.querySelectorAll("tbody tr");
-    if (rows.length) {
-        const last = rows[0];
-        last.classList.add("new-row");
-
         setTimeout(() => {
-            last.classList.remove("new-row");
-        }, 2000);
-    }
-}, 50);
+            const rowsEl = document.querySelectorAll("tbody tr");
+            if (rowsEl.length) {
+                const last = rowsEl[0];
+                last.classList.add("new-row");
+
+                setTimeout(() => {
+                    last.classList.remove("new-row");
+                }, 2000);
+            }
+        }, 50);
 
         const k = computeKpis(ev);
 
