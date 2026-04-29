@@ -1,10 +1,13 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, request, redirect
 import json
 import time
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from threading import BoundedSemaphore
+from threading import BoundedSemaphore, Lock
 from collections import deque
 from datetime import datetime, timezone
 
@@ -12,7 +15,7 @@ from dashboard import create_dashboard_blueprint
 
 app = Flask(__name__)
 
-# Disable Werkzeug access logs (they include the full URL + query string).
+# werkzeug
 _werkzeug_logger = logging.getLogger("werkzeug")
 _werkzeug_logger.setLevel(logging.ERROR)
 _werkzeug_logger.propagate = False
@@ -21,7 +24,7 @@ _werkzeug_logger.disabled = True
 LOG_FILE = os.getenv("HONEYPOT_LOG_FILE", "honeypot.log")
 app.register_blueprint(create_dashboard_blueprint(LOG_FILE))
 
-# Defaults are chosen to be safe under abusive load, but adjustable.
+# config
 STDOUT_ENABLED = os.getenv("HONEYPOT_STDOUT", "0") == "1"
 PRETTY_STDOUT = os.getenv("HONEYPOT_PRETTY_STDOUT", "1") == "1"
 PRETTY_FILE = os.getenv("HONEYPOT_PRETTY_LOG_FILE", "0") == "1"
@@ -35,6 +38,8 @@ LOG_BACKUP_COUNT = int(os.getenv("HONEYPOT_LOG_BACKUP_COUNT", "5") or "5")
 
 _semaphore = BoundedSemaphore(MAX_CONCURRENT)
 _rate_window_by_ip: dict[str, deque[float]] = {}
+_rate_cleanup_last: float = 0.0
+_rate_lock = Lock()
 
 _event_logger = logging.getLogger("honeypot")
 if not _event_logger.handlers:
@@ -52,14 +57,20 @@ _event_logger.propagate = False
 
 
 def _get_client_ip(req) -> str | None:
-    if os.getenv("HONEYPOT_TRUST_PROXY", "1") != "0":
+    TRUST_PROXY = os.getenv("HONEYPOT_TRUST_PROXY", "1") != "0"
+
+    # trust only headers if request comes from localhost
+    if TRUST_PROXY and req.remote_addr in ("127.0.0.1", "::1"):
         xff = (req.headers.get("X-Forwarded-For") or "").strip()
         if xff:
-            # Take the left-most IP (original client) when trusted proxy is enabled.
-            return xff.split(",")[0].strip() or req.remote_addr
+            # first ip = client
+            return xff.split(",")[0].strip()
+
         xri = (req.headers.get("X-Real-IP") or "").strip()
         if xri:
             return xri
+
+    # fallback = direct client IP
     return req.remote_addr
 
 
@@ -70,14 +81,13 @@ def _normalize_device_type(value):
         return value
     return "unknown"
 
-
-# user agent parsing
+# ua parse
 def parse_user_agent(ua: str):
     device = "unknown"
     os_name = "unknown"
     browser = "unknown"
 
-    # OS detection
+    # os
     if "iPhone" in ua or "iPad" in ua:
         os_name = "iOS"
     elif "Android" in ua:
@@ -107,8 +117,7 @@ def parse_user_agent(ua: str):
 
     return device, os_name, browser
 
-
-# structured logging
+# logging
 def log(data: dict):
     network = data.get("network") or {}
     credentials = data.get("credentials") or {}
@@ -150,13 +159,14 @@ def log(data: dict):
     }
 
     if PRETTY_FILE:
-        _event_logger.info(json.dumps(enriched, ensure_ascii=False, indent=2) + "\n")
+        _event_logger.info(json.dumps(enriched, ensure_ascii=False))
     else:
         _event_logger.info(json.dumps(enriched, ensure_ascii=False, separators=(",", ":")))
 
 
 @app.route("/authorize")
 def authorize():
+    global _rate_cleanup_last
     if not _semaphore.acquire(blocking=False):
         return redirect("/success.html")
 
@@ -180,29 +190,41 @@ def authorize():
 
         if RATE_LIMIT_PER_SEC > 0 and ip:
             now = time.time()
-            q = _rate_window_by_ip.get(ip)
-            if q is None:
-                q = deque()
-                _rate_window_by_ip[ip] = q
-            while q and (now - q[0]) > 1.0:
-                q.popleft()
-            if len(q) >= RATE_LIMIT_PER_SEC:
-                return redirect("/success.html")
-            q.append(now)
+            with _rate_lock:
+                q = _rate_window_by_ip.get(ip)
+                if q is None:
+                    q = deque()
+                    _rate_window_by_ip[ip] = q
+                while q and (now - q[0]) > 1.0:
+                    q.popleft()
+                if len(q) >= RATE_LIMIT_PER_SEC:
+                    return redirect("/success.html")
+                q.append(now)
 
-        # session time
+                # rate limit cleanup
+                if len(_rate_window_by_ip) > 10_000:
+                    _rate_window_by_ip.clear()
+                    _rate_cleanup_last = now
+                elif (now - _rate_cleanup_last) > 10.0 and len(_rate_window_by_ip) > 2_000:
+                    stale_before = now - 5.0
+                    for ip_key, dq in list(_rate_window_by_ip.items()):
+                        if not dq or dq[-1] < stale_before:
+                            _rate_window_by_ip.pop(ip_key, None)
+                    _rate_cleanup_last = now
+
+        # session tid
         try:
             session_duration = int((time.time() * 1000 - int(start_time)) / 1000)
         except Exception:
             session_duration = 0
 
-        # UA parse
+        # ua
         device_type, os_name, browser_name = parse_user_agent(user_agent)
 
         email_clean = (email or "").strip()
         password_clean = (password or "").strip()
 
-        # never store plaintext credentials in prod
+        # prod: aldrig plaintext creds
         email_provided = bool(email_clean)
         password_len = len(password_clean) if password_clean else 0
 

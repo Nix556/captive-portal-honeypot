@@ -18,7 +18,7 @@ def _read_tail_text(path: str, max_bytes: int) -> str:
         return ""
 
 
-def _extract_json_objects(text: str) -> list[dict[str, Any]]:
+def _extract_json_objects_from_blobs(text: str) -> list[dict[str, Any]]:
     decoder = json.JSONDecoder()
     objects: list[dict[str, Any]] = []
     idx = 0
@@ -39,6 +39,27 @@ def _extract_json_objects(text: str) -> list[dict[str, Any]]:
     return objects
 
 
+def _extract_json_objects(text: str) -> list[dict[str, Any]]:
+    # ndjson: en json pr linje
+    objects: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(obj, dict):
+            objects.append(obj)
+
+    if objects:
+        return objects
+
+    # fallback til gamle multi-line logs
+    return _extract_json_objects_from_blobs(text)
+
+
 def _sanitize_event(event: dict[str, Any]) -> dict[str, Any]:
     ts = event.get("timestamp") or {}
     network = event.get("network") or {}
@@ -46,7 +67,7 @@ def _sanitize_event(event: dict[str, Any]) -> dict[str, Any]:
     credentials = event.get("credentials") or {}
     session = event.get("session") or {}
 
-    # Normalize credential fields across dev/prod schemas.
+    # normalize dev/prod
     email_provided = bool(
         credentials.get("email_provided")
         or credentials.get("provided")

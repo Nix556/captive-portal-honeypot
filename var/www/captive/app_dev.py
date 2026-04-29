@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, request, redirect
 import json
 import time
@@ -9,7 +12,7 @@ from dashboard import create_dashboard_blueprint
 
 app = Flask(__name__)
 
-# Hide Werkzeug access logs
+# werkzeug
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 LOG_FILE = "honeypot.log"
@@ -17,14 +20,20 @@ app.register_blueprint(create_dashboard_blueprint(LOG_FILE))
 
 
 def _get_client_ip(req) -> str | None:
-    # Default: trust proxy headers (disable with HONEYPOT_TRUST_PROXY=0).
-    if os.getenv("HONEYPOT_TRUST_PROXY", "1") != "0":
+    TRUST_PROXY = os.getenv("HONEYPOT_TRUST_PROXY", "1") != "0"
+
+    # trust only headers if request comes from localhost
+    if TRUST_PROXY and req.remote_addr in ("127.0.0.1", "::1"):
         xff = (req.headers.get("X-Forwarded-For") or "").strip()
         if xff:
-            return xff.split(",")[0].strip() or req.remote_addr
+            # first ip = client
+            return xff.split(",")[0].strip()
+
         xri = (req.headers.get("X-Real-IP") or "").strip()
         if xri:
             return xri
+
+    # fallback = direct client IP
     return req.remote_addr
 
 
@@ -35,14 +44,13 @@ def _normalize_device_type(value):
         return value
     return "unknown"
 
-
-# user agent parsing
+# ua parse
 def parse_user_agent(ua):
     device = "unknown"
     os = "unknown"
     browser = "unknown"
 
-    # OS detection
+    # os
     if "iPhone" in ua or "iPad" in ua:
         os = "iOS"
     elif "Android" in ua:
@@ -72,8 +80,7 @@ def parse_user_agent(ua):
 
     return device, os, browser
 
-
-# structured logging
+# logging
 def log(data):
 
     network = data.get("network") or {}
@@ -132,10 +139,9 @@ def log(data):
     }
 
     with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps(enriched, ensure_ascii=False, indent=2) + "\n\n")
+        f.write(json.dumps(enriched, ensure_ascii=False) + "\n")
 
-
-# authorize route
+# route
 @app.route("/authorize")
 def authorize():
 
@@ -150,13 +156,13 @@ def authorize():
 
     user_agent = request.headers.get("User-Agent", "")
 
-    # session time
+    # session tid
     try:
         session_duration = int((time.time() * 1000 - int(start_time)) / 1000)
     except Exception:
         session_duration = 0
 
-    # UA parse
+    # ua
     device, os, browser = parse_user_agent(user_agent)
 
     # raw event
@@ -188,7 +194,6 @@ def authorize():
 
     return redirect("/success.html")
 
-
-# RUN
+# run
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
