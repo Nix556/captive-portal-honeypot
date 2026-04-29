@@ -321,9 +321,9 @@ async function load(){
             </tr>
         `).join("");
 
-        setLive(true);   // only success → green
+        setLive(true);   // only success = green
     } catch (err) {
-        setLive(false);  // only real failure → red
+        setLive(false);  // only real failure = red
     }
 }
 
