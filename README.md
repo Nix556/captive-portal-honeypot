@@ -24,9 +24,13 @@ Compose fil: [docker-compose.yml](docker-compose.yml)
 
 ## Run (prod)
 
+Aktiver environment:
+
 `python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt`
 
-`cd var/www/captive && gunicorn -w 2 --threads 8 -b 0.0.0.0:5000 app_prod:app --access-logfile /dev/null`
+Start server:
+
+`gunicorn -w 2 --threads 8 -b 0.0.0.0:5000 app_prod:app --access-logfile /dev/null`
 
 ## Run (dev)
 
@@ -50,3 +54,4 @@ Nginx eksempel config: [nginx/sites-enabled.default.example](nginx/sites-enabled
 - Logfilen er `honeypot.log` (NDJSON: en JSON pr. linje)
 - `docker-compose.yml` starter kun UniFi Controller (den starter ikke Flask/Gunicorn)
 - Prod logger aldrig plaintext credentials (kun `email_provided` + `password_len`)
+- Appen forventer at køre bag Nginx (reverse proxy) i production
