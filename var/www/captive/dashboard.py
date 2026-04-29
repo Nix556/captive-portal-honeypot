@@ -321,9 +321,20 @@ button:hover { background:#0b1220; }
     margin-top: 4px;
 }
 
-.new-row {
-    background: #f0f9ff;
-    transition: background 2s ease;
+.table-container tbody tr:first-child {
+    background: #f0f9ff !important;
+    animation: subtleBlink 2s ease-in-out infinite !important;
+}
+
+@keyframes subtleBlink {
+    0%, 100% { 
+        background: #f0f9ff !important; 
+        box-shadow: 0 0 6px rgba(59, 130, 246, 0.25) !important;
+    }
+    50% { 
+        background: #e0f2fe !important; 
+        box-shadow: 0 0 16px rgba(59, 130, 246, 0.12) !important;
+    }
 }
 </style>
 </head>
@@ -377,7 +388,6 @@ button:hover { background:#0b1220; }
     </div>
 </div>
 
-<!-- NY TABLE CONTAINER -->
 <div class="table-container">
 <table>
 <thead>
@@ -398,6 +408,7 @@ const dot = document.getElementById("dot");
 
 let auto = true;
 let timer = null;
+let previousEventCount = 0;
 
 function setLive(v){
     dot.className = "live-dot " + (v ? "online" : "offline");
@@ -440,9 +451,10 @@ async function load(){
         const data = await res.json();
 
         const ev = (data.events || []).slice().reverse().slice(0, 200);
+        const currentEventCount = ev.length;
 
-        rows.innerHTML = ev.map((e, i) => `
-            <tr>
+        const newRowsHtml = ev.map((e, i) => `
+            <tr data-index="${i}">
                 <td>${i + 1}</td>
                 <td>${new Date(e.timestamp_utc || "").toLocaleTimeString("da-DK")}</td>
                 <td>${e.ip || ""}</td>
@@ -456,17 +468,9 @@ async function load(){
             </tr>
         `).join("");
 
-        setTimeout(() => {
-            const rowsEl = document.querySelectorAll("tbody tr");
-            if (rowsEl.length) {
-                const last = rowsEl[0];
-                last.classList.add("new-row");
+        rows.innerHTML = newRowsHtml;
 
-                setTimeout(() => {
-                    last.classList.remove("new-row");
-                }, 2000);
-            }
-        }, 50);
+        previousEventCount = currentEventCount;
 
         const k = computeKpis(ev);
 
