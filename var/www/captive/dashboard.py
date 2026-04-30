@@ -525,8 +525,14 @@ tr.new {
     text-transform: uppercase;
 }
 
-.status-yes { background: #10b981; }
-.status-no { background: #94a3b8; }
+.status-yes { 
+    background: #d1fae5 !important;
+    color: #065f46 !important;
+}
+.status-no { 
+    background: #f1f5f9 !important; 
+    color: #475569 !important; 
+}
 
 ::-webkit-scrollbar {
     width: 6px;
