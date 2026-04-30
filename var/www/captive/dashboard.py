@@ -84,6 +84,7 @@ def _sanitize_event(event: dict[str, Any]) -> dict[str, Any]:
         "timestamp_utc": ts.get("utc"),
         "ip": network.get("ip"),
         "ssid": network.get("ssid"),
+        "bssid": network.get("ap"),  # ← NY: Tilføj denne linje
         "session_id": session.get("id") or event.get("session_id"),
         "session_duration_sec": session.get("duration_sec") or event.get("session_duration_sec") or 0,
         "device_type": device.get("type"),
@@ -166,6 +167,8 @@ def create_dashboard_blueprint(
                 return event["password_len"] or 0
             elif sort_by == "ssid":
                 return event["ssid"] or ""
+            elif sort_by == "bssid":
+                return event["bssid"] or ""
             elif sort_by == "device":
                 return event["device_type"] or ""
             return ""
@@ -711,6 +714,7 @@ tr.new {
                     <th onclick="setSort('time')" data-sort="time">Tid</th>
                     <th onclick="setSort('ip')" data-sort="ip">IP</th>
                     <th>SSID</th>
+                    <th onclick="setSort('bssid')" data-sort="bssid">BSSID</th>
                     <th onclick="setSort('device')" data-sort="device">Device</th>
                     <th>OS</th>
                     <th>Browser</th>
@@ -806,6 +810,7 @@ async function load() {
                 <td>${new Date(e.timestamp_utc||'').toLocaleTimeString('da-DK')}</td>
                 <td>${e.ip||'-'}</td>
                 <td>${e.ssid||'-'}</td>
+                 <td>${e.bssid||'-'}</td>
                 <td><span class="badge">${e.device_type||''}</span></td>
                 <td>${e.os||''}</td>
                 <td>${e.browser||''}</td>
