@@ -581,6 +581,17 @@ td {
     border-bottom: 1px solid var(--border-light);
 }
 
+.time-col {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Roboto Mono', 'Courier New', monospace;
+    font-weight: 500;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    letter-spacing: -0.025em;
+}
+
+[data-theme="dark"] .time-col {
+    font-weight: 600;
+}
+
 tr:hover {
     background: var(--border-light);
 }
@@ -711,7 +722,7 @@ tr.new {
             <thead>
                 <tr>
                     <th onclick="setSort('time')" data-sort="time">#</th>
-                    <th onclick="setSort('time')" data-sort="time">Tid</th>
+                    <th onclick="setSort('time')" data-sort="time" class="time-col">Tid</th>
                     <th onclick="setSort('ip')" data-sort="ip">IP</th>
                     <th>SSID</th>
                     <th onclick="setSort('bssid')" data-sort="bssid">BSSID</th>
@@ -807,7 +818,7 @@ async function load() {
         rowsEl.innerHTML = events.map((e,i) => `
             <tr class="${i === newRowIndex ? 'new' : ''}">
                 <td>${i+1}</td>
-                <td>${new Date(e.timestamp_utc||'').toLocaleTimeString('da-DK')}</td>
+                <td class="time-col">${new Date(e.timestamp_utc||'').toLocaleTimeString('da-DK')}</td>
                 <td>${e.ip||'-'}</td>
                 <td>${e.ssid||'-'}</td>
                  <td>${e.bssid||'-'}</td>
