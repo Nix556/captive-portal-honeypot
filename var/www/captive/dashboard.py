@@ -566,7 +566,7 @@ tr.new {
         </div>
         <div class="actions">
             <button class="btn refresh" onclick="load()">Opdater</button>
-            <button class="btn toggle" id="autoBtn">Auto: ON</button>
+            <button class="btn toggle" id="autoBtn" onclick="toggleAuto()">Auto: ON</button>
             <button class="btn clear" onclick="clearFilters()">Ryd</button>
             <button class="btn dark-toggle" id="darkToggle" onclick="toggleDarkMode()" title="Dark/Light mode">🌙</button>
             <div class="status" id="statusLine">
