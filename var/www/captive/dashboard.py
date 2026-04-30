@@ -705,8 +705,10 @@ async function load() {
         lastRowCount = rowCount;
         if (firstLoad) firstLoad = false;
         
+        const newRowIndex = isNewData ? 0 : -1;
+        
         rowsEl.innerHTML = events.map((e,i) => `
-            <tr class="${isNewData && i<3 ? 'new' : ''}">
+            <tr class="${i === newRowIndex ? 'new' : ''}">
                 <td>${i+1}</td>
                 <td>${new Date(e.timestamp_utc||'').toLocaleTimeString('da-DK')}</td>
                 <td>${e.ip||'-'}</td>
