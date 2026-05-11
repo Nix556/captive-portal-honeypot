@@ -51,3 +51,8 @@ Nginx config: `nginx/sites-enabled.default.example`
 * Log: `honeypot.log` (NDJSON)
 * Docker starter kun UniFi, ikke Flask
 * Prod logger ikke passwords (kun længde + email flag)
+
+## Credits
+
+* Tak til Copilot
+* Tak til Mikkel for den flotte log fil :D (Min PC sprang)
